@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Student Dashboard - Online Exam System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+
+<nav class="navbar navbar-custom navbar-expand-lg">
+    <div class="container">
+        <span class="navbar-brand">Online Exam System</span>
+        <div>
+            <span class="text-white me-3" id="welcomeText"></span>
+            <button class="btn btn-outline-light btn-sm" onclick="logout()">Logout</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <h3>Available Exams</h3>
+    <div id="examList" class="row mt-3"></div>
+
+    <hr class="my-5">
+
+    <h3>My Result History</h3>
+    <table class="table table-bordered mt-3">
+        <thead class="table-dark">
+        <tr>
+            <th>Exam Name</th>
+            <th>Score</th>
+            <th>Total Marks</th>
+            <th>Status</th>
+            <th>Date</th>
+        </tr>
+        </thead>
+        <tbody id="resultHistory"></tbody>
+    </table>
+    <hr class="my-5">
+
+    <h3>Leaderboard</h3>
+    <select class="form-select mb-3" id="leaderboardExamSelect" onchange="loadLeaderboard()" style="max-width: 300px;"></select>
+    <table class="table table-bordered">
+        <thead class="table-dark">
+        <tr>
+            <th>Rank</th>
+            <th>Student Name</th>
+            <th>Score</th>
+            <th>Date</th>
+        </tr>
+        </thead>
+        <tbody id="leaderboardBody"></tbody>
+    </table>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    // Login check karo - agar logged in nahi hai toh login page pe bhejo
+    if (!isLoggedIn()) {
+        window.location.href = "login.html";
+    }
+
+    document.getElementById("welcomeText").innerText =
+        "Logged in as: " + localStorage.getItem("email");
+
+    // Saare exams load karo
+    async function loadExams() {
+        try {
+            const exams = await apiGet("/exams");
+            const examListDiv = document.getElementById("examList");
+            examListDiv.innerHTML = "";
+
+            exams.forEach(exam => {
+                const card = document.createElement("div");
+                card.className = "col-md-4 mb-3";
+                card.innerHTML = `
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">${exam.examName}</h5>
+                            <p class="card-text">Duration: ${exam.duration} minutes</p>
+                            <p class="card-text">Total Marks: ${exam.totalMarks}</p>
+                            <button class="btn btn-primary" onclick="startExam(${exam.id})">Start Exam</button>
+                        </div>
+                    </div>
+                `;
+                examListDiv.appendChild(card);
+            });
+        } catch (err) {
+            console.error("Error loading exams:", err);
+        }
+    }
+
+    // Exam start karne pe exam-page.html pe le jao, examId ke saath
+    function startExam(examId) {
+        localStorage.setItem("currentExamId", examId);
+        window.location.href = "exam-page.html";
+    }
+
+    // Result history load karo
+    async function loadResults() {
+        try {
+            const userId = localStorage.getItem("userId");
+            const results = await apiGet("/results/user/" + userId);
+            const tbody = document.getElementById("resultHistory");
+            tbody.innerHTML = "";
+
+            results.forEach(result => {
+                const percentage = (result.score / result.exam.totalMarks) * 100;
+                const status = percentage >= 40 ? "PASS" : "FAIL";
+                const statusClass = status === "PASS" ? "text-success" : "text-danger";
+
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${result.exam.examName}</td>
+                    <td>${result.score}</td>
+                    <td>${result.exam.totalMarks}</td>
+                    <td class="${statusClass} fw-bold">${status}</td>
+                    <td>${new Date(result.examDate).toLocaleString()}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        } catch (err) {
+            console.error("Error loading results:", err);
+        }
+    }
+    async function loadLeaderboardDropdown() {
+    try {
+        const exams = await apiGet("/exams");
+        const select = document.getElementById("leaderboardExamSelect");
+        select.innerHTML = "";
+
+        exams.forEach(exam => {
+            const option = document.createElement("option");
+            option.value = exam.id;
+            option.innerText = exam.examName;
+            select.appendChild(option);
+        });
+
+        if (exams.length > 0) {
+            loadLeaderboard();
+        }
+    } catch (err) {
+        console.error("Error loading exams for leaderboard:", err);
+    }
+}
+
+async function loadLeaderboard() {
+    try {
+        const examId = document.getElementById("leaderboardExamSelect").value;
+        if (!examId) return;
+
+        const results = await apiGet("/results/leaderboard/" + examId);
+        const tbody = document.getElementById("leaderboardBody");
+        tbody.innerHTML = "";
+
+        results.forEach((result, index) => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${result.user.name}</td>
+                <td>${result.score}</td>
+                <td>${new Date(result.examDate).toLocaleDateString()}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    } catch (err) {
+        console.error("Error loading leaderboard:", err);
+    }
+}
+
+    loadExams();
+    loadResults();
+    loadLeaderboardDropdown();
+</script>
+</body>
+</html>
