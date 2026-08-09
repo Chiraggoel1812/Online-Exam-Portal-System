@@ -21,7 +21,7 @@ function isLoggedIn() {
 
 function logout() {
     localStorage.clear();
-    window.location.href = "login.html";
+    window.location.href = "index.html";
 }
 
 async function apiGet(endpoint) {

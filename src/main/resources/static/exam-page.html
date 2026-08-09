@@ -5,6 +5,34 @@
     <title>Exam - Online Exam System</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
     <link href="css/style.css" rel="stylesheet">
+    <style>
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+        .nav-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .status-not-visited { background-color: #e0e0e0; color: #333; }
+        .status-not-answered { background-color: #dc3545; color: #fff; }
+        .status-answered { background-color: #28a745; color: #fff; }
+        .status-marked { background-color: #ffc107; color: #000; }
+        .nav-btn.current { outline: 3px solid #0d6efd; }
+        .legend-box {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            margin-right: 6px;
+        }
+        .legend-item { font-size: 0.85rem; margin-bottom: 6px; }
+    </style>
 </head>
 <body>
 
@@ -16,16 +44,36 @@
 </nav>
 
 <div class="container">
-    <div id="quizContainer" class="question-box">
-        <h6 class="text-muted" id="questionCounter">Question 1 of 5</h6>
-        <h4 id="questionText" class="mb-4"></h4>
+    <div class="row">
+        <!-- Question Area -->
+        <div class="col-md-8">
+            <div id="quizContainer" class="question-box">
+                <h6 class="text-muted" id="questionCounter">Question 1 of 5</h6>
+                <h4 id="questionText" class="mb-4"></h4>
 
-        <div id="optionsContainer"></div>
+                <div id="optionsContainer"></div>
 
-        <div class="d-flex justify-content-between mt-4">
-            <button class="btn btn-secondary" id="prevBtn" onclick="prevQuestion()">Previous</button>
-            <button class="btn btn-primary" id="nextBtn" onclick="nextQuestion()">Next</button>
-            <button class="btn btn-success d-none" id="submitBtn" onclick="submitExam()">Submit Exam</button>
+                <div class="d-flex justify-content-between mt-4 flex-wrap gap-2">
+                    <button class="btn btn-secondary" id="prevBtn" onclick="prevQuestion()">Previous</button>
+                    <button class="btn btn-warning" id="markBtn" onclick="markForReview()">Mark for Review & Next</button>
+                    <button class="btn btn-primary" id="nextBtn" onclick="nextQuestion()">Save & Next</button>
+                    <button class="btn btn-success d-none" id="submitBtn" onclick="submitExam()">Submit Exam</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Question Navigator -->
+        <div class="col-md-4">
+            <div class="question-box">
+                <h6 class="mb-3">Question Navigator</h6>
+                <div class="legend-item"><span class="legend-box status-answered"></span>Answered</div>
+                <div class="legend-item"><span class="legend-box status-not-answered"></span>Not Answered</div>
+                <div class="legend-item"><span class="legend-box status-marked"></span>Marked for Review</div>
+                <div class="legend-item"><span class="legend-box status-not-visited"></span>Not Visited</div>
+                <hr>
+                <div class="nav-grid" id="navGrid"></div>
+                <button class="btn btn-success w-100 mt-4" onclick="submitExam()">Submit Exam</button>
+            </div>
         </div>
     </div>
 </div>
@@ -33,31 +81,34 @@
 <script src="js/api.js"></script>
 <script>
     if (!isLoggedIn()) {
-        window.location.href = "login.html";
+        window.location.href = "index.html";
     }
 
     const examId = localStorage.getItem("currentExamId");
     let questions = [];
     let currentIndex = 0;
     let userAnswers = {};   // { questionId: "A"/"B"/"C"/"D" }
+    let markedForReview = {}; // { questionId: true }
+    let visited = {};         // { questionId: true }
     let timeLeft = 0;
     let timerInterval;
+
     // Fisher-Yates shuffle algorithm - array ko randomly mix karta hai
-       function shuffleArray(array) {
-    const arr = [...array];   // original array ko change na karke copy banao
-    for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
+    function shuffleArray(array) {
+        const arr = [...array];
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
     }
-    return arr;
-}
 
     // Exam details aur questions dono load karo
     async function initExam() {
         try {
             const exam = await apiGet("/exams/" + examId);
             document.getElementById("examTitle").innerText = exam.examName;
-            timeLeft = exam.duration * 60;   // minutes ko seconds mein convert karo
+            timeLeft = exam.duration * 60;
 
             questions = await apiGet("/questions/exam/" + examId);
 
@@ -68,6 +119,7 @@
             }
             questions = shuffleArray(questions);
 
+            buildNavigator();
             startTimer();
             renderQuestion();
         } catch (err) {
@@ -76,7 +128,6 @@
         }
     }
 
-    // Timer start karo
     function startTimer() {
         updateTimerDisplay();
         timerInterval = setInterval(() => {
@@ -98,9 +149,53 @@
             `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
 
+    // Navigator grid banao (ek button per question)
+    function buildNavigator() {
+        const navGrid = document.getElementById("navGrid");
+        navGrid.innerHTML = "";
+        questions.forEach((q, idx) => {
+            const btn = document.createElement("button");
+            btn.className = "nav-btn status-not-visited";
+            btn.id = "navBtn-" + idx;
+            btn.innerText = idx + 1;
+            btn.onclick = () => {
+                currentIndex = idx;
+                renderQuestion();
+            };
+            navGrid.appendChild(btn);
+        });
+    }
+
+    // Navigator ke ek button ka color/status update karo
+    function updateNavigatorStatus(idx) {
+        const q = questions[idx];
+        const btn = document.getElementById("navBtn-" + idx);
+        btn.classList.remove("status-not-visited", "status-not-answered", "status-answered", "status-marked", "current");
+
+        if (markedForReview[q.id]) {
+            btn.classList.add("status-marked");
+        } else if (userAnswers[q.id]) {
+            btn.classList.add("status-answered");
+        } else if (visited[q.id]) {
+            btn.classList.add("status-not-answered");
+        } else {
+            btn.classList.add("status-not-visited");
+        }
+
+        if (idx === currentIndex) {
+            btn.classList.add("current");
+        }
+    }
+
+    function refreshAllNavigatorStatuses() {
+        questions.forEach((q, idx) => updateNavigatorStatus(idx));
+    }
+
     // Current question render karo
     function renderQuestion() {
         const q = questions[currentIndex];
+        visited[q.id] = true;
+
         document.getElementById("questionCounter").innerText =
             `Question ${currentIndex + 1} of ${questions.length}`;
         document.getElementById("questionText").innerText = q.questionText;
@@ -126,10 +221,8 @@
             optionsDiv.appendChild(label);
         });
 
-        // Previous button disable karo pehle question pe
         document.getElementById("prevBtn").disabled = currentIndex === 0;
 
-        // Last question pe Next chhupao, Submit dikhao
         if (currentIndex === questions.length - 1) {
             document.getElementById("nextBtn").classList.add("d-none");
             document.getElementById("submitBtn").classList.remove("d-none");
@@ -137,11 +230,22 @@
             document.getElementById("nextBtn").classList.remove("d-none");
             document.getElementById("submitBtn").classList.add("d-none");
         }
+
+        refreshAllNavigatorStatuses();
     }
 
     function selectAnswer(option) {
         const q = questions[currentIndex];
         userAnswers[q.id] = option;
+        markedForReview[q.id] = false; // answer diya toh review mark hata do
+        updateNavigatorStatus(currentIndex);
+    }
+
+    function markForReview() {
+        const q = questions[currentIndex];
+        markedForReview[q.id] = true;
+        updateNavigatorStatus(currentIndex);
+        nextQuestion();
     }
 
     function nextQuestion() {
