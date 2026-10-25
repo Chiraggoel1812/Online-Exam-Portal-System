@@ -46,4 +46,11 @@ public class ExamController {
         examService.deleteExam(id);
         return "Exam deleted successfully!";
     }
+    // POST /api/exams/{id}/start  -> exam attempt start karo, server pe time record hota hai
+    @PostMapping("/{id}/start")
+    public com.examportal.online_exam_system.entity.ExamAttempt startExam(
+            @PathVariable Integer id,
+            @RequestParam Integer userId) {
+        return examService.startExam(id, userId);
+    }
 }

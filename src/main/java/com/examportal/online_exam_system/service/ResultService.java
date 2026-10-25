@@ -15,12 +15,17 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import com.examportal.online_exam_system.entity.ExamAttempt;
+import com.examportal.online_exam_system.repository.ExamAttemptRepository;
 
 @Service
 public class ResultService {
 
     @Autowired
     private ResultRepository resultRepository;
+
+    @Autowired
+    private ExamAttemptRepository examAttemptRepository;
 
     @Autowired
     private QuestionRepository questionRepository;
@@ -36,6 +41,26 @@ public class ResultService {
 
         // 1. Exam ke saare questions nikalo
         List<Question> questions = questionRepository.findByExamId(request.getExamId());
+        // ---------- TIME VALIDATION (naya) ----------
+        ExamAttempt attempt = examAttemptRepository
+                .findTopByUser_IdAndExam_IdOrderByStartTimeDesc(request.getUserId(), request.getExamId())
+                .orElseThrow(() -> new RuntimeException("Exam attempt not found. Please start the exam first."));
+
+        if (attempt.getSubmitted()) {
+            throw new RuntimeException("This exam attempt has already been submitted.");
+        }
+
+        Exam examForTimeCheck = examRepository.findById(request.getExamId())
+                .orElseThrow(() -> new RuntimeException("Exam not found"));
+
+        LocalDateTime deadline = attempt.getStartTime().plusMinutes(examForTimeCheck.getDuration());
+        LocalDateTime gracePeriodDeadline = deadline.plusSeconds(30); // network delay ke liye 30 sec grace
+
+        if (LocalDateTime.now().isAfter(gracePeriodDeadline)) {
+            attempt.setSubmitted(true);
+            examAttemptRepository.save(attempt);
+            throw new RuntimeException("Exam time has expired. Submission rejected.");
+        }
 
         double score = 0;
         double marksPerQuestion = 1;
@@ -75,6 +100,9 @@ public class ResultService {
         result.setExam(exam);
         result.setScore((int) Math.round(score));
         result.setExamDate(LocalDateTime.now());
+
+        attempt.setSubmitted(true);
+        examAttemptRepository.save(attempt);
 
         return resultRepository.save(result);
     }

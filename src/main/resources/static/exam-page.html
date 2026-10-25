@@ -92,6 +92,9 @@
     let visited = {};         // { questionId: true }
     let timeLeft = 0;
     let timerInterval;
+    let tabSwitchCount = 0;
+    const MAX_TAB_SWITCHES = 3;
+    let examSubmitted = false;
 
     // Fisher-Yates shuffle algorithm - array ko randomly mix karta hai
     function shuffleArray(array) {
@@ -102,6 +105,25 @@
         }
         return arr;
     }
+     // Tab-switch detection — agar student exam ke dauran tab switch kare
+function handleVisibilityChange() {
+    if (examSubmitted) return;
+
+    if (document.hidden) {
+        tabSwitchCount++;
+    } else {
+        if (tabSwitchCount > 0) {
+            if (tabSwitchCount >= MAX_TAB_SWITCHES) {
+                alert("Aapne allowed limit se zyada baar tab switch kiya hai. Exam auto-submit ho raha hai.");
+                submitExam();
+            } else {
+                alert(`Warning ${tabSwitchCount}/${MAX_TAB_SWITCHES}: Exam ke dauran tab switch karna allowed nahi hai. ${MAX_TAB_SWITCHES} baar hone par exam auto-submit ho jaayega.`);
+            }
+        }
+    }
+}
+
+document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Exam details aur questions dono load karo
     async function initExam() {
@@ -109,6 +131,9 @@
             const exam = await apiGet("/exams/" + examId);
             document.getElementById("examTitle").innerText = exam.examName;
             timeLeft = exam.duration * 60;
+
+            const userId = localStorage.getItem("userId");
+            await apiPost(`/exams/${examId}/start?userId=${userId}`, {});
 
             questions = await apiGet("/questions/exam/" + examId);
 
@@ -263,28 +288,38 @@
     }
 
     // Exam submit karo
-    async function submitExam() {
-        clearInterval(timerInterval);
+   async function submitExam() {
+    examSubmitted = true;
+    clearInterval(timerInterval);
 
-        const userId = localStorage.getItem("userId");
+    const userId = localStorage.getItem("userId");
 
-        const payload = {
-            userId: parseInt(userId),
-            examId: parseInt(examId),
-            answers: userAnswers
-        };
+    const payload = {
+        userId: parseInt(userId),
+        examId: parseInt(examId),
+        answers: userAnswers
+    };
 
-        try {
-            const response = await apiPost("/results/submit", payload);
-            const result = await response.json();
+    try {
+        const response = await apiPost("/results/submit", payload);
 
-            localStorage.setItem("lastResult", JSON.stringify(result));
-            window.location.href = "result.html";
-        } catch (err) {
-            console.error("Error submitting exam:", err);
-            alert("Failed to submit exam.");
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            const message = (errorData && errorData.message) ? errorData.message : "Exam submit nahi ho paya.";
+            alert(message);
+            window.location.href = "student-dashboard.html";
+            return;
         }
+
+        const result = await response.json();
+
+        localStorage.setItem("lastResult", JSON.stringify(result));
+        window.location.href = "result.html";
+    } catch (err) {
+        console.error("Error submitting exam:", err);
+        alert("Failed to submit exam.");
     }
+}
 
     initExam();
 </script>

@@ -7,6 +7,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import com.examportal.online_exam_system.entity.ExamAttempt;
+import com.examportal.online_exam_system.entity.User;
+import com.examportal.online_exam_system.repository.ExamAttemptRepository;
+import com.examportal.online_exam_system.repository.UserRepository;
+import java.time.LocalDateTime;
 
 @Service
 public class ExamService {
@@ -40,9 +45,30 @@ public class ExamService {
 
         return examRepository.save(exam);
     }
+    @Autowired
+    private ExamAttemptRepository examAttemptRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     // Exam delete karo
     public void deleteExam(Integer id) {
         examRepository.deleteById(id);
+    }
+    // Exam attempt start karo — server pe start time record hota hai
+    public ExamAttempt startExam(Integer examId, Integer userId) {
+        Exam exam = examRepository.findById(examId)
+                .orElseThrow(() -> new RuntimeException("Exam not found"));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        ExamAttempt attempt = new ExamAttempt();
+        attempt.setUser(user);
+        attempt.setExam(exam);
+        attempt.setStartTime(LocalDateTime.now());
+        attempt.setSubmitted(false);
+
+        return examAttemptRepository.save(attempt);
     }
 }
