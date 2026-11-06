@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Result - Online Exam System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+
+<nav class="navbar navbar-custom navbar-expand-lg">
+    <div class="container">
+        <span class="navbar-brand">Online Exam System</span>
+    </div>
+</nav>
+
+<div class="container mt-5">
+    <div class="card-custom text-center" style="max-width: 500px;">
+        <h3 class="mb-4">Exam Result</h3>
+
+        <h1 id="scoreDisplay" class="display-4 text-primary"></h1>
+        <p class="text-muted" id="totalMarksDisplay"></p>
+
+        <h4 id="statusDisplay" class="my-4"></h4>
+
+        <button class="btn btn-primary" onclick="window.location.href='student-dashboard.html'">
+            Back to Dashboard
+        </button>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    if (!isLoggedIn()) {
+        window.location.href = "login.html";
+    }
+
+    const resultData = JSON.parse(localStorage.getItem("lastResult"));
+
+    if (resultData) {
+        const score = resultData.score;
+        const totalMarks = resultData.exam.totalMarks;
+        const percentage = (score / totalMarks) * 100;
+        const status = percentage >= 40 ? "PASS" : "FAIL";
+
+        document.getElementById("scoreDisplay").innerText = `${score} / ${totalMarks}`;
+        document.getElementById("totalMarksDisplay").innerText =
+            `${resultData.exam.examName} - ${percentage.toFixed(1)}%`;
+
+        const statusDiv = document.getElementById("statusDisplay");
+        statusDiv.innerText = status;
+        statusDiv.className = status === "PASS" ? "my-4 text-success fw-bold" : "my-4 text-danger fw-bold";
+    } else {
+        document.querySelector(".card-custom").innerHTML =
+            "<p>No result data found.</p><button class='btn btn-primary' onclick=\"window.location.href='student-dashboard.html'\">Back to Dashboard</button>";
+    }
+</script>
+</body>
+</html>
